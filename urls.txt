@@ -1,0 +1,50 @@
+# CSDN博客
+https://blog.csdn.net/example/article/details/123456
+https://blog.csdn.net/test/article/details/789012
+
+# 掘金文章
+https://juejin.cn/post/123456789
+https://juejin.cn/article/987654321
+
+# FreeBuf文章
+https://www.freebuf.com/articles/network/123456.html
+https://www.freebuf.com/articles/web/789012.html
+
+# 知乎文章
+https://zhuanlan.zhihu.com/p/123456789
+https://www.zhihu.com/question/12345678
+
+# 小红书笔记
+https://www.xiaohongshu.com/explore/1234567890
+https://xhslink.com/example
+
+# 51CTO博客
+https://blog.51cto.com/example/123456
+https://www.51cto.com/article/123456.html
+
+# 腾讯云开发者社区
+https://cloud.tencent.com/developer/article/1234567
+https://developer.tencent.com/article/123456
+
+# 阿里云开发者社区
+https://developer.aliyun.com/article/123456
+https://www.aliyun.com/example/123456
+
+# 简书文章
+https://www.jianshu.com/p/1234567890abcdef
+https://jianshu.com/p/abcdef123456
+
+# 博客园文章
+https://www.cnblogs.com/example/p/123456.html
+https://www.cnblogs.com/test/archive/2024/01/01/123456.html
+
+# 华为云博客
+https://bbs.huaweicloud.com/blogs/123456
+https://support.huaweicloud.com/blogs/123456
+
+# 测试URL（用于验证404）
+https://blog.csdn.net/notexist/article/details/999999999
+https://juejin.cn/post/999999999
+
+# 测试URL（用于验证关键词检测）
+https://blog.csdn.net/monkeycode/article/details/123456

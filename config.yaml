@@ -1,0 +1,149 @@
+# 多平台文章监测系统配置文件
+# 版本: 1.0.0
+
+# 关键词配置（不区分大小写匹配）
+keywords:
+  - monkeycode
+  - pandawiki
+  - 开源
+  - 极客
+  - 程序员
+  # 可在此处添加更多关键词
+
+# 平台解析规则
+# 每个平台可配置: 选择器、排除元素、编码方式等
+platform_rules:
+  csdn:
+    name: "CSDN"
+    selectors:
+      - article
+      - .article-content
+      - #article_content
+      - .blog-content
+    exclude_tags:
+      - script
+      - style
+      - nav
+      - .ad-content
+
+  juejin:
+    name: "掘金"
+    selectors:
+      - article
+      - .article-content
+      - .markdown-body
+    exclude_tags:
+      - script
+      - style
+      - .author-info
+
+  freebuf:
+    name: "FreeBuf"
+    selectors:
+      - article
+      - .article-content
+      - .post-content
+    exclude_tags:
+      - script
+      - style
+      - .related-articles
+
+  zhihu:
+    name: "知乎"
+    selectors:
+      - article
+      - .RichText
+      - [class*="Article"]
+    exclude_tags:
+      - script
+      - style
+      - .QuestionHeader
+
+  xiaohongshu:
+    name: "小红书"
+    selectors:
+      - article
+      - .note-content
+      - [class*="content"]
+    exclude_tags:
+      - script
+      - style
+
+  51cto:
+    name: "51CTO"
+    selectors:
+      - article
+      - .article-content
+      - .content-detail
+    exclude_tags:
+      - script
+      - style
+
+  tencent_cloud:
+    name: "腾讯云开发者"
+    selectors:
+      - article
+      - .article-content
+      - .markdown-content
+    exclude_tags:
+      - script
+      - style
+
+  aliyun:
+    name: "阿里云开发者"
+    selectors:
+      - article
+      - .article-content
+      - .markdown-body
+    exclude_tags:
+      - script
+      - style
+
+  jianshu:
+    name: "简书"
+    selectors:
+      - article
+      - .note-content
+      - .show-content
+    exclude_tags:
+      - script
+      - style
+
+  cnblogs:
+    name: "博客园"
+    selectors:
+      - article
+      - .blogpost-body
+      - .post-body
+    exclude_tags:
+      - script
+      - style
+
+  huawei_cloud:
+    name: "华为云博客"
+    selectors:
+      - article
+      - .article-content
+      - .markdown-body
+    exclude_tags:
+      - script
+      - style
+
+# 请求参数配置
+request_params:
+  timeout: 10
+  retry_times: 2
+  interval: 1.0
+
+  headers:
+    User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    Accept-Language: 'zh-CN,zh;q=0.9,en;q=0.8'
+    Accept-Encoding: 'gzip, deflate'
+    Connection: 'keep-alive'
+
+# 扩展配置（预留）
+extensions:
+  enabled: true
+  custom_platforms: []
+  custom_keywords: []
