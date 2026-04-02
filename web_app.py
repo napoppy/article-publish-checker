@@ -237,7 +237,9 @@ def check_single_url(url, keywords):
         
         if result['发布状态'] == '可访问':
             soup = BeautifulSoup(r.text, 'html.parser')
-            text = soup.get_text().lower()
+            for tag in soup.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                tag.decompose()
+            text = soup.get_text(separator=' ', strip=True).lower()
             matched = [k for k in keywords if k.lower() in text]
             result['命中关键词'] = ', '.join(matched)
         else:
