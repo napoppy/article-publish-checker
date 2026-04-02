@@ -1,0 +1,6 @@
+﻿URL,平台,发布状态,状态码,命中关键词,错误信息,监测时间
+https://blog.csdn.net/example/article/details/123456,csdn,不可访问,404,,HTTP 404,2026-04-02 02:46:02
+https://blog.csdn.net/test/article/details/789012,csdn,不可访问,404,,HTTP 404,2026-04-02 02:46:05
+https://juejin.cn/post/123456789,juejin,可访问,200,,,2026-04-02 02:46:09
+https://juejin.cn/article/987654321,juejin,可访问,200,,,2026-04-02 02:46:10
+https://www.freebuf.com/articles/network/123456.html,freebuf,可访问,200,,,2026-04-02 02:46:11
