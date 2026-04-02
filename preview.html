@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多平台文章监测报告预览</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .summary { display: flex; gap: 20px; justify-content: center; margin-bottom: 30px; }
+        .stat { background: white; padding: 20px 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+        .stat-value { font-size: 32px; font-weight: bold; color: #1890ff; }
+        .stat-label { color: #666; margin-top: 5px; }
+        table { width: 100%; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th { background: #1890ff; color: white; padding: 15px; text-align: left; }
+        td { padding: 12px 15px; border-bottom: 1px solid #eee; }
+        tr:hover { background: #fafafa; }
+        .status-ok { color: #52c41a; font-weight: bold; }
+        .status-fail { color: #ff4d4f; font-weight: bold; }
+        .keyword { display: inline-block; background: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 12px; }
+        .platform-tag { display: inline-block; background: #f0f0f0; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        a { color: #1890ff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>多平台文章发布状态监测报告</h1>
+        <div class="summary">
+            <div class="stat"><div class="stat-value" id="total">-</div><div class="stat-label">总URL数</div></div>
+            <div class="stat"><div class="stat-value" id="accessible">-</div><div class="stat-label">可访问</div></div>
+            <div class="stat"><div class="stat-value" id="keywords">-</div><div class="stat-label">命中关键词</div></div>
+        </div>
+        <table>
+            <thead><tr><th>平台</th><th>URL</th><th>状态</th><th>状态码</th><th>命中关键词</th><th>监测时间</th></tr></thead>
+            <tbody id="results"></tbody>
+        </table>
+    </div>
+    <script>
+        async function loadCSV() {
+            try {
+                const response = await fetch('monitor_result_20260402.csv');
+                const text = await response.text();
+                const lines = text.split('\n').filter(line => line.trim());
+                const headers = lines[0].split(',');
+                const data = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const values = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (const char of lines[i]) {
+                        if (char === '"') { inQuotes = !inQuotes; }
+                        else if (char === ',' && !inQuotes) { values.push(current); current = ''; }
+                        else { current += char; }
+                    }
+                    values.push(current);
+                    if (values.length >= headers.length) data.push(values);
+                }
+                let accessible = 0, keywords = 0;
+                const tbody = document.getElementById('results');
+                data.forEach(row => {
+                    const url = row[0]; const platform = row[1]; const status = row[2];
+                    const code = row[3]; const kws = row[4]; const time = row[5];
+                    if (status === '可访问') accessible++;
+                    if (kws) keywords++;
+                    const kwHtml = kws ? kws.split(' ').filter(k=>k).map(k=>`<span class="keyword">${k}</span>`).join('') : '-';
+                    tbody.innerHTML += `<tr>
+                        <td><span class="platform-tag">${platform}</span></td>
+                        <td><a href="${url}" target="_blank">${url.substring(0, 60)}...</a></td>
+                        <td class="${status === '可访问' ? 'status-ok' : 'status-fail'}">${status}</td>
+                        <td>${code || '-'}</td>
+                        <td>${kwHtml}</td>
+                        <td>${time || '-'}</td>
+                    </tr>`;
+                });
+                document.getElementById('total').textContent = data.length;
+                document.getElementById('accessible').textContent = accessible;
+                document.getElementById('keywords').textContent = keywords;
+            } catch (e) { console.error(e); }
+        }
+        loadCSV();
+    </script>
+</body>
+</html>
