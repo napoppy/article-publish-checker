@@ -22,6 +22,20 @@ PLATFORMS = {
     'huawei_cloud': ['huaweicloud.com'],
 }
 
+BROWSER_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Accept-Encoding': 'gzip, deflate',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Cache-Control': 'max-age=0',
+}
+
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -53,6 +67,7 @@ HTML_TEMPLATE = '''
         tr:hover { background: #fafafa; }
         .status-ok { color: #52c41a; font-weight: bold; }
         .status-fail { color: #ff4d4f; font-weight: bold; }
+        .status-blocked { color: #faad14; font-weight: bold; }
         .keyword-tag { display: inline-block; background: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 12px; }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab { padding: 10px 20px; background: white; border: 1px solid #d9d9d9; border-radius: 4px; cursor: pointer; }
@@ -60,11 +75,11 @@ HTML_TEMPLATE = '''
         .hidden { display: none; }
         .history-item { padding: 10px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
         .history-item:hover { background: #fafafa; }
-        .progress { margin: 10px 0; color: #666; }
         .url-item { padding: 8px 12px; background: #fafafa; border-radius: 4px; margin: 4px 0; display: flex; align-items: center; gap: 10px; }
         .url-item .status-icon { font-size: 16px; }
         .url-item .url-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .batch-result { max-height: 400px; overflow-y: auto; }
+        .info-box { background: #f0f7ff; border: 1px solid #91caff; padding: 12px; border-radius: 4px; margin-bottom: 15px; color: #333; }
     </style>
 </head>
 <body>
@@ -78,6 +93,9 @@ HTML_TEMPLATE = '''
         <div id="check-tab">
             <div class="card">
                 <h3 style="margin-bottom: 15px;">输入URL进行检测 (支持批量，每行一个)</h3>
+                <div class="info-box">
+                    <strong>提示：</strong>部分平台（如掘金、CSDN、知乎等）有反爬机制，可能返回拦截页面导致无法检测到关键词。建议使用Cookie认证或直接在这些平台查看文章。
+                </div>
                 <div class="form-group">
                     <label>URL地址 (每行一个)</label>
                     <textarea id="urls" placeholder="https://blog.csdn.net/example/article/details/123456&#10;https://juejin.cn/post/123456789&#10;https://www.freebuf.com/articles/web/789012.html"></textarea>
@@ -118,7 +136,7 @@ HTML_TEMPLATE = '''
     
     <script>
         function showTab(tab) {
-            document.querySelectorAll('.tab').ForEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('check-tab').classList.toggle('hidden', tab !== 'check');
             document.getElementById('history-tab').classList.toggle('hidden', tab !== 'history');
@@ -162,17 +180,17 @@ HTML_TEMPLATE = '''
             document.getElementById('stats').innerHTML = `
                 <div class="stat-box"><div class="stat-value">${data.total}</div><div class="stat-label">总URL</div></div>
                 <div class="stat-box"><div class="stat-value">${data.accessible}</div><div class="stat-label">可访问</div></div>
-                <div class="stat-box"><div class="stat-value">${data.inaccessible}</div><div class="stat-label">不可访问</div></div>
+                <div class="stat-box"><div class="stat-value">${data.blocked}</div><div class="stat-label">反爬拦截</div></div>
                 <div class="stat-box"><div class="stat-value">${data.with_keywords}</div><div class="stat-label">命中关键词</div></div>
             `;
             
             document.getElementById('result-list').innerHTML = data.results.map(r => `
                 <div class="url-item">
-                    <span class="status-icon">${r['发布状态'] === '可访问' ? '✓' : '✗'}</span>
+                    <span class="status-icon">${r['blocked'] ? '⚠' : (r['发布状态'] === '可访问' ? '✓' : '✗')}</span>
                     <span class="url-text" title="${r['URL']}">${r['URL']}</span>
-                    <span class="${r['发布状态'] === '可访问' ? 'status-ok' : 'status-fail'}">${r['发布状态']}</span>
+                    <span class="${r['blocked'] ? 'status-blocked' : (r['发布状态'] === '可访问' ? 'status-ok' : 'status-fail')}">${r['blocked'] ? '反爬拦截' : r['发布状态']}</span>
                     <span>${r['状态码'] || '-'}</span>
-                    ${r['命中关键词'] ? r['命中关键词'].split(',').map(k => `<span class="keyword-tag">${k.trim()}</span>`).join('') : '<span style="color:#999;">无</span>'}
+                    ${r['命中关键词'] ? r['命中关键词'].split(',').map(k => `<span class="keyword-tag">${k.trim()}</span>`).join('') : (r['blocked'] ? '<span style="color:#999;">需浏览器打开</span>' : '<span style="color:#999;">无</span>')}
                 </div>
             `).join('');
         }
@@ -230,20 +248,27 @@ def check_single_url(url, keywords):
     }
     
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        r = requests.get(url.strip(), timeout=10, headers=headers)
+        r = requests.get(url.strip(), timeout=10, headers=BROWSER_HEADERS, allow_redirects=True)
         result['状态码'] = r.status_code
-        result['发布状态'] = '可访问' if 200 <= r.status_code < 400 else '不可访问'
+        result['blocked'] = False
         
-        if result['发布状态'] == '可访问':
+        if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
-            for tag in soup.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
-                tag.decompose()
-            text = soup.get_text(separator=' ', strip=True).lower()
-            matched = [k for k in keywords if k.lower() in text]
-            result['命中关键词'] = ', '.join(matched)
+            
+            if len(r.text) < 5000:
+                result['blocked'] = True
+                result['发布状态'] = '可访问(疑似拦截)'
+            else:
+                result['发布状态'] = '可访问'
+                for tag in soup.find_all(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                    tag.decompose()
+                text = soup.get_text(separator=' ', strip=True).lower()
+                matched = [k for k in keywords if k.lower() in text]
+                result['命中关键词'] = ', '.join(matched)
         else:
+            result['发布状态'] = '不可访问'
             result['命中关键词'] = ''
+            
     except Exception as e:
         result['发布状态'] = '不可访问'
         result['状态码'] = None
@@ -271,6 +296,7 @@ def check_batch():
     return jsonify({
         'total': len(results),
         'accessible': sum(1 for r in results if r['发布状态'] == '可访问'),
+        'blocked': sum(1 for r in results if r.get('blocked')),
         'inaccessible': sum(1 for r in results if r['发布状态'] == '不可访问'),
         'with_keywords': sum(1 for r in results if r.get('命中关键词')),
         'results': results
