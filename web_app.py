@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import os
 from datetime import datetime
+import concurrent.futures
 
 app = Flask(__name__)
 
@@ -37,16 +38,15 @@ HTML_TEMPLATE = '''
         .card { background: white; border-radius: 8px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .form-group { margin-bottom: 15px; }
         label { display: block; margin-bottom: 5px; font-weight: 500; color: #333; }
-        input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; }
-        textarea { height: 80px; resize: vertical; }
+        input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; font-family: inherit; }
+        textarea { height: 120px; resize: vertical; }
         .btn { background: #1890ff; color: white; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-size: 14px; }
         .btn:hover { background: #40a9ff; }
         .btn:disabled { background: #d9d9d9; cursor: not-allowed; }
-        .stats { display: flex; gap: 20px; margin-bottom: 20px; }
-        .stat-box { flex: 1; background: white; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .stats { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .stat-box { flex: 1; min-width: 120px; background: white; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .stat-value { font-size: 28px; font-weight: bold; color: #1890ff; }
         .stat-label { color: #666; margin-top: 5px; }
-        .result-box { margin-top: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th { background: #1890ff; color: white; padding: 12px; text-align: left; }
         td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
@@ -54,15 +54,17 @@ HTML_TEMPLATE = '''
         .status-ok { color: #52c41a; font-weight: bold; }
         .status-fail { color: #ff4d4f; font-weight: bold; }
         .keyword-tag { display: inline-block; background: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; margin: 2px; font-size: 12px; }
-        .alert { padding: 12px 16px; border-radius: 4px; margin: 10px 0; }
-        .alert-success { background: #f6ffed; border: 1px solid #b7eb8f; color: #52c41a; }
-        .alert-error { background: #fff2f0; border: 1px solid #ffccc7; color: #ff4d4f; }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab { padding: 10px 20px; background: white; border: 1px solid #d9d9d9; border-radius: 4px; cursor: pointer; }
         .tab.active { background: #1890ff; color: white; border-color: #1890ff; }
         .hidden { display: none; }
         .history-item { padding: 10px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
         .history-item:hover { background: #fafafa; }
+        .progress { margin: 10px 0; color: #666; }
+        .url-item { padding: 8px 12px; background: #fafafa; border-radius: 4px; margin: 4px 0; display: flex; align-items: center; gap: 10px; }
+        .url-item .status-icon { font-size: 16px; }
+        .url-item .url-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .batch-result { max-height: 400px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -75,21 +77,28 @@ HTML_TEMPLATE = '''
         
         <div id="check-tab">
             <div class="card">
-                <h3 style="margin-bottom: 15px;">输入URL进行检测</h3>
+                <h3 style="margin-bottom: 15px;">输入URL进行检测 (支持批量，每行一个)</h3>
                 <div class="form-group">
-                    <label>URL地址</label>
-                    <input type="text" id="url" placeholder="https://blog.csdn.net/example/article/details/123456">
+                    <label>URL地址 (每行一个)</label>
+                    <textarea id="urls" placeholder="https://blog.csdn.net/example/article/details/123456&#10;https://juejin.cn/post/123456789&#10;https://www.freebuf.com/articles/web/789012.html"></textarea>
                 </div>
                 <div class="form-group">
                     <label>关键词 (逗号分隔)</label>
                     <input type="text" id="keywords" value="pandawiki, monkeycode, 开源">
                 </div>
-                <button class="btn" id="checkBtn" onclick="checkUrl()">开始检测</button>
+                <button class="btn" id="checkBtn" onclick="checkUrls()">开始检测</button>
+            </div>
+            
+            <div id="progress-area" class="card hidden">
+                <div class="progress" id="progress-text">准备中...</div>
             </div>
             
             <div id="result-area" class="hidden">
                 <div class="stats" id="stats"></div>
-                <div id="result-box" class="card"></div>
+                <div class="card batch-result">
+                    <h4 style="margin-bottom: 15px;">检测结果</h4>
+                    <div id="result-list"></div>
+                </div>
             </div>
         </div>
         
@@ -109,55 +118,63 @@ HTML_TEMPLATE = '''
     
     <script>
         function showTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab').ForEach(t => t.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById('check-tab').classList.toggle('hidden', tab !== 'check');
             document.getElementById('history-tab').classList.toggle('hidden', tab !== 'history');
             if (tab === 'history') loadHistory();
         }
         
-        async function checkUrl() {
-            const url = document.getElementById('url').value.trim();
+        async function checkUrls() {
+            const urlsText = document.getElementById('urls').value.trim();
             const keywords = document.getElementById('keywords').value;
-            if (!url) { alert('请输入URL'); return; }
+            if (!urlsText) { alert('请输入URL'); return; }
+            
+            const urls = urlsText.split('\\n').filter(u => u.trim());
+            if (urls.length === 0) { alert('请输入有效的URL'); return; }
             
             const btn = document.getElementById('checkBtn');
             btn.disabled = true;
             btn.textContent = '检测中...';
             
+            document.getElementById('progress-area').classList.remove('hidden');
+            document.getElementById('result-area').classList.add('hidden');
+            
             try {
-                const res = await fetch('/api/check', {
+                const res = await fetch('/api/check-batch', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url, keywords})
+                    body: JSON.stringify({urls, keywords})
                 });
                 const data = await res.json();
-                showResult(data);
+                showResults(data);
             } catch (e) {
                 alert('检测失败: ' + e);
             } finally {
                 btn.disabled = false;
                 btn.textContent = '开始检测';
+                document.getElementById('progress-area').classList.add('hidden');
             }
         }
         
-        function showResult(data) {
+        function showResults(data) {
             document.getElementById('result-area').classList.remove('hidden');
             document.getElementById('stats').innerHTML = `
-                <div class="stat-box"><div class="stat-value">${data['发布状态'] === '可访问' ? '✓' : '✗'}</div><div class="stat-label">${data['发布状态']}</div></div>
-                <div class="stat-box"><div class="stat-value">${data['状态码'] || '-'}</div><div class="stat-label">状态码</div></div>
-                <div class="stat-box"><div class="stat-value">${data['平台']}</div><div class="stat-label">平台</div></div>
-                <div class="stat-box"><div class="stat-value">${data['matched_count'] || 0}</div><div class="stat-label">命中关键词</div></div>
+                <div class="stat-box"><div class="stat-value">${data.total}</div><div class="stat-label">总URL</div></div>
+                <div class="stat-box"><div class="stat-value">${data.accessible}</div><div class="stat-label">可访问</div></div>
+                <div class="stat-box"><div class="stat-value">${data.inaccessible}</div><div class="stat-label">不可访问</div></div>
+                <div class="stat-box"><div class="stat-value">${data.with_keywords}</div><div class="stat-label">命中关键词</div></div>
             `;
             
-            let html = `<h4>检测结果</h4>`;
-            if (data['命中关键词']) {
-                html += `<div class="alert alert-success">✓ 命中关键词: ${data['命中关键词'].split(',').map(k => `<span class="keyword-tag">${k.trim()}</span>`).join('')}</div>`;
-            } else {
-                html += `<div class="alert alert-error">未命中关键词</div>`;
-            }
-            html += `<p style="margin-top:10px;color:#666;">监测时间: ${data['监测时间']}</p>`;
-            document.getElementById('result-box').innerHTML = html;
+            document.getElementById('result-list').innerHTML = data.results.map(r => `
+                <div class="url-item">
+                    <span class="status-icon">${r['发布状态'] === '可访问' ? '✓' : '✗'}</span>
+                    <span class="url-text" title="${r['URL']}">${r['URL']}</span>
+                    <span class="${r['发布状态'] === '可访问' ? 'status-ok' : 'status-fail'}">${r['发布状态']}</span>
+                    <span>${r['状态码'] || '-'}</span>
+                    ${r['命中关键词'] ? r['命中关键词'].split(',').map(k => `<span class="keyword-tag">${k.trim()}</span>`).join('') : '<span style="color:#999;">无</span>'}
+                </div>
+            `).join('');
         }
         
         async function loadHistory() {
@@ -205,25 +222,16 @@ def detect_platform(url):
                 return platform
     return 'unknown'
 
-@app.route('/')
-def index():
-    return render_template_string(HTML_TEMPLATE)
-
-@app.route('/api/check', methods=['POST'])
-def check():
-    data = request.json
-    url = data['url']
-    keywords = [k.strip() for k in data.get('keywords', '').split(',') if k.strip()]
-    
+def check_single_url(url, keywords):
     result = {
-        'URL': url,
-        '平台': detect_platform(url),
+        'URL': url.strip(),
+        '平台': detect_platform(url.strip()),
         '监测时间': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        r = requests.get(url, timeout=10, headers=headers)
+        r = requests.get(url.strip(), timeout=10, headers=headers)
         result['状态码'] = r.status_code
         result['发布状态'] = '可访问' if 200 <= r.status_code < 400 else '不可访问'
         
@@ -232,18 +240,39 @@ def check():
             text = soup.get_text().lower()
             matched = [k for k in keywords if k.lower() in text]
             result['命中关键词'] = ', '.join(matched)
-            result['matched_count'] = len(matched)
         else:
             result['命中关键词'] = ''
-            result['matched_count'] = 0
     except Exception as e:
         result['发布状态'] = '不可访问'
         result['状态码'] = None
         result['命中关键词'] = ''
-        result['matched_count'] = 0
         result['error'] = str(e)
     
-    return jsonify(result)
+    return result
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/api/check-batch', methods=['POST'])
+def check_batch():
+    data = request.json
+    urls = data['urls']
+    keywords = [k.strip() for k in data.get('keywords', '').split(',') if k.strip()]
+    
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(check_single_url, url, keywords): url for url in urls}
+        for future in concurrent.futures.as_completed(futures):
+            results.append(future.result())
+    
+    return jsonify({
+        'total': len(results),
+        'accessible': sum(1 for r in results if r['发布状态'] == '可访问'),
+        'inaccessible': sum(1 for r in results if r['发布状态'] == '不可访问'),
+        'with_keywords': sum(1 for r in results if r.get('命中关键词')),
+        'results': results
+    })
 
 @app.route('/api/history')
 def history():
